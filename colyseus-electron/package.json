@@ -4,17 +4,46 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.TheL3rNa3aN.colyseus-host",
+    "productName": "Colyseus Co-op (CLIENT & SERVER)",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "**/*",
+      "!dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "server/**"
+    ]
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^44.3.0"
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "concurrently": "^10.0.5",
     "tree-kill": "^1.2.2"
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true
   }
 }

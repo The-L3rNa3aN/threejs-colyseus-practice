@@ -2,13 +2,21 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const kill = require('tree-kill');
+const fs = require('fs');
 
 let mainWindow;
 let serverProcess = null;
 let tunnelProcess = null;
 
 // Path to your Colyseus server folder
-const serverPath = path.join(__dirname, '..', 'my-server');
+const isDev = !app.isPackaged;
+const serverPath = isDev ? path.join(__dirname, 'server') : path.join(process.resourcesPath, 'server');
+
+function logToFile(message)
+{
+    let logPath = path.join(app.getPath('userData'), 'debug.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`);
+}
 
 function startTunnel()
 {
@@ -65,7 +73,7 @@ function startTunnel()
                 console.log("Full output received:");
                 console.log(fullOutput);
     
-                reject(new Error("Timeout while starting server."));
+                reject(new Error("Timeout while starting tunnel."));
             }
         }, 20000);
     });
@@ -118,30 +126,30 @@ function startServer()
         return false;
     }
 
-    console.log('Starting Colyseus server...');
+    let entryFile = path.join(serverPath, 'build', 'index.js');
+    logToFile('entryFile: ', entryFile);
 
     // Start the server using npm start
-    serverProcess = spawn('cmd.exe', ['/c', 'npm', 'start'],
+    serverProcess = spawn('node', [entryFile],
     {
         cwd: serverPath,
-        // shell: false,
-        windowsHide: true,
-        env: { ...process.env, FORCE_COLOR: '1' }
+        windowsHide: false,
+        env: { ...process.env, FORCE_COLOR: '1', NODE_ENV: 'production' }
     });
 
-    serverProcess.stdout.on('data', (data) => { console.log(`[Server]: ${data}`) });
+    serverProcess.stdout.on('data', (data) => { logToFile(`[Server]: ${data}`) });
 
     serverProcess.stderr.on('data', (data) => { console.error(`[Server Error]: ${data}`) });
 
     serverProcess.on('close', (code) =>
     {
-        console.log(`Server process exited with code ${code}`);
+        logToFile(`Server process exited with code ${code}`);
         serverProcess = null;
     });
 
     serverProcess.on('error', (err) =>
     {
-        console.log("Failed to start server:", err);
+        console.error("Failed to start server:", err);
         serverProcess = null;
     });
 
