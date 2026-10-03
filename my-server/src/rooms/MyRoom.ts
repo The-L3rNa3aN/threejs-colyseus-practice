@@ -1,62 +1,50 @@
 import { Room, Client, CloseCode } from "colyseus";
 import { MyRoomState } from "./schema/MyRoomState.js";
 
-export class MyRoom extends Room<{ state: MyRoomState }> {
-  maxClients = 4;
-  state = new MyRoomState();
+export class MyRoom extends Room
+{
+	maxClients = 4;
+	state = new MyRoomState();
+	private playerNames = new Map<string, string>();
 
-  messages = {
-    yourMessageType: (client: Client, message: any) => {
-      /**
-       * Handle "yourMessageType" message.
-       */
-      console.log(client.sessionId, "sent a message:", message);
-    },
-  };
+	messages =
+	{
+		yourMessageType: (client: Client, message: any) => {  //Handle "yourMessageType" message.
+			console.log(client.sessionId, "sent a message:", message);
+		},
+	};
 
-  onCreate(options: any) {
-    /**
-     * Called when a new room is created.
-     */
+	onCreate(options: any) {  //Called when a new room is created.
+		console.log("Room created!");
 
-    console.log("Room created!");
+		this.onMessage("chat", (client, message) =>
+		{
+			let name = this.playerNames.get(client.sessionId) || client.sessionId;
 
-    this.onMessage("chat", (client, message) =>
-      {
-        console.log(`Chat from ${client.sessionId}: `, message);
+			console.log(`Chat from ${client.sessionId}: `, message);
+			this.broadcast("chat", { from: name, text: message?.text ?? message ?? "" }, { except: client });
+		});
 
-        let name =client.userData?.name || client.sessionId;
+		this.onMessage("*", (client, type, message) => { console.log(`Unhandled message type "${type}" from ${client.sessionId}: `, message) });
+	}
 
-        this.broadcast("chat", { from: name, text: message?.text ?? message ?? "" }, { except: client });
-      });
+	onJoin(client: Client, options: any) {  //Called when a client joins the room.
+		let playerName = options?.name || "Anonymous";
 
-    this.onMessage("*", (client, type, message) => { console.log(`Unhandled message type "${type}" from ${client.sessionId}: `, message) });
-  }
+		this.playerNames.set(client.sessionId, playerName);
+		console.log(`${playerName} joined!`);
+		this.broadcast("chat", { from: "System", text: `${playerName} joined the room` }, { except: client });
+	}
+	
+	onLeave(client: Client, code: CloseCode) {  //Called when a client leaves the room.
+		let name = this.playerNames.get(client.sessionId) || client.sessionId;
+		
+		console.log(`${name} left!`, code);
+		this.broadcast("chat", { from: "System", text: `${name} left the room` });
+		this.playerNames.delete(client.sessionId);
+	}
 
-  onJoin(client: Client, options: any) {
-    /**
-     * Called when a client joins the room.
-     */
-
-    // let playerName = options?.name || `Player_${client.sessionId.slice(0, 4)}`;
-    // console.log(`${playerName} (${client.sessionId}), joined!`);
-
-    client.userData = { name: options?.name || "Anonymous"};
-    console.log(`${client.userData.name} joined`);
-  }
-
-  onLeave(client: Client, code: CloseCode) {
-    /**
-     * Called when a client leaves the room.
-     */
-    console.log(client.sessionId, "left!", code);
-  }
-
-  onDispose() {
-    /**
-     * Called when the room is disposed.
-     */
-    console.log("room", this.roomId, "disposing...");
-  }
-
+	onDispose() { //Called when the room is disposed.
+		console.log("room", this.roomId, "disposing...");
+	}
 }

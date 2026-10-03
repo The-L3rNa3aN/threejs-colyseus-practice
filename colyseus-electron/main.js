@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const kill = require('tree-kill');
@@ -10,7 +10,12 @@ let tunnelProcess = null;
 
 // Path to your Colyseus server folder
 const isDev = !app.isPackaged;
-const serverPath = isDev ? path.join(__dirname, 'server') : path.join(process.resourcesPath, 'server');
+let serverPath;
+
+if (isDev)
+    serverPath = path.join(__dirname, 'server');
+else
+    serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server');
 
 function logToFile(message)
 {
@@ -127,7 +132,13 @@ function startServer()
     }
 
     let entryFile = path.join(serverPath, 'build', 'index.js');
-    logToFile('entryFile: ', entryFile);
+    
+    dialog.showMessageBoxSync
+    ({
+        type: 'info',
+        title: 'Debug Paths',
+        message: `serverPath:\n${serverPath}\n\nentryFile:\n${entryFile}`
+    });
 
     // Start the server using npm start
     serverProcess = spawn('node', [entryFile],
@@ -137,19 +148,35 @@ function startServer()
         env: { ...process.env, FORCE_COLOR: '1', NODE_ENV: 'production' }
     });
 
-    serverProcess.stdout.on('data', (data) => { logToFile(`[Server]: ${data}`) });
+    serverProcess.stdout.on('data', (data) => { console.log(`[Server stdout]: ${data}`) });
 
-    serverProcess.stderr.on('data', (data) => { console.error(`[Server Error]: ${data}`) });
+    serverProcess.stderr.on('data', (data) =>
+    {
+        let msg = data.toString();
+        console.error(`[Server stderr]: ${msg}`);
+
+        dialog.showMessageBoxSync
+        ({
+            type: 'error',
+            title: 'Server Error',
+            message: msg
+        });
+    });
 
     serverProcess.on('close', (code) =>
     {
-        logToFile(`Server process exited with code ${code}`);
+        console.log(`Server process exited with code ${code}`);
         serverProcess = null;
     });
 
     serverProcess.on('error', (err) =>
     {
-        console.error("Failed to start server:", err);
+        dialog.showMessageBoxSync
+        ({
+            type: 'error',
+            title: "Failed to start server",
+            message: err.message
+        });
         serverProcess = null;
     });
 

@@ -23,12 +23,11 @@
     "extraResources": [
       {
         "from": "server",
-        "to": "server",
-        "filter": ["**/*"]
+        "to": "server"
       }
     ],
     "asarUnpack": [
-      "server/**"
+      "**/*"
     ]
   },
   "keywords": [],

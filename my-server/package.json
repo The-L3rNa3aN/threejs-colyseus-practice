@@ -5,6 +5,7 @@
   "description": "A Colyseus multiplayer server",
   "type": "module",
   "main": "build/index.js",
+  "bin": "build/index.js",
   "engines": {
     "node": ">= 22.0.0"
   },
@@ -13,7 +14,24 @@
     "loadtest": "tsx loadtest/example.ts --room my_room --numClients 2",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf build",
-    "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000"
+    "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000",
+    "package": "npm run build && pkg . --targets node18-win-x64 --output dist/ColyseusServer.exe"
+  },
+  "pkg": {
+    "scripts": [
+      "build/**/*.js"
+    ],
+    "assets": [
+      "build/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist",
+    "ignore": [
+      "node:inspector",
+      "node:inspector/promises"
+    ]
   },
   "author": "",
   "license": "UNLICENSED",
@@ -35,6 +53,7 @@
     "express": "^5.2.1"
   },
   "allowScripts": {
-    "msgpackr-extract@3.0.4": true
+    "msgpackr-extract@3.0.4": true,
+    "esbuild@0.28.2": true
   }
 }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Colyseus Co-op (CLIENT-ONLY)</title>
+  <title>Colyseus Co-op Client</title>
   <style>
     body
     {
@@ -67,11 +67,24 @@
   </style>
 </head>
 <body>
-    <h1>Colyseus Co-op (CLIENT-ONLY)</h1>
+    <h1>Colyseus Co-op Client</h1>
 
     <div class="section">
       <label>Your Name:</label>
       <input type="text" id="playerName" value="Player" style="width: 220px;">
+    </div>
+
+    <div class="section">
+        <h3>Create Room (Host)</h3>
+        <input type="text" id="serverUrl" placeholder="Server URL (e.g. https://xxxx.lhr.life)" style="width: 340px;"><br>
+        <button id="btnCreate">Create Room</button>
+        <div id="inviteBox"></div>
+        <button id="btnCopyInvite" style="display: none; margin-top: 8px;">Copy Invite Link</button>
+        <div class="hint">
+            1. Start the server + tunnel first.<br>
+            2. Paste the public tunnel URL above.<br>
+            3. Click "Create Room".
+        </div>
     </div>
 
     <div class="section">
@@ -101,6 +114,8 @@
         const logEl = document.getElementById("log");
         const statusEl = document.getElementById("status");
         const inviteBox = document.getElementById("inviteBox");
+        const btnCreate = document.getElementById("btnCreate");
+        const btnCopyInvite = document.getElementById("btnCopyInvite");
         const btnJoin = document.getElementById("btnJoin");
         const btnLeave = document.getElementById("btnLeave");
         const btnSend = document.getElementById("btnSend");
@@ -116,6 +131,7 @@
       
         function updateUI(connected)
         {
+            btnCreate.disabled = connected;
             btnJoin.disabled = connected;
             btnLeave.disabled = !connected;
             btnSend.disabled = !connected;
@@ -132,13 +148,15 @@
                 if(type === "chat")
                     log(`${message.from}: ${message.text}`);
                 else
-                    log(`← [${type}]: ${JSON.stringify(message)}`);
+                    log(`[${type}]: ${JSON.stringify(message)}`);
             });
 
             room.onLeave((code) =>
             {
                 log(`Left the room (code: ${code})`);
                 room = null;
+                inviteBox.textContent = "";
+                btnCopyInvite.style.display = "none";
                 updateUI(false);
             });
 
@@ -146,6 +164,49 @@
         }
 
         // Button events
+        btnCreate.onclick = async () =>
+        {
+            let serverUrl = document.getElementById("serverUrl").value.trim();
+            let name = document.getElementById("playerName").value.trim() || "Player";
+
+            try
+            {
+                if(!serverUrl) return log("Please enter the public tunnel URL first.");
+
+                btnCreate.disabled = true;
+                btnLeave.disabled = true;
+                
+                log("Starting server...");
+                
+                btnCreate.textContent = "Starting server...";
+                client = new Colyseus.Client(serverUrl);
+                room = await client.create("my_room", { name });
+
+                let invite = `${room.roomId}@${serverUrl}`;
+
+                inviteBox.textContent = `Invite Link: ${invite}`;
+                btnCopyInvite.style.display = "inline-block";
+
+                log("Room created!");
+                log(`Invite: ${invite}`);
+
+                setupRoomListeners();
+                updateUI(true);
+
+                btnCreate.textContent = "Create Room";
+            }
+            catch (e)
+            {
+                log("Error creating room: " + (e.message || e));
+                console.error(e);
+
+                btnCreate.disabled = false;
+                btnCreate.textContent = "Create Room";
+
+                btnLeave.disabled = true;
+            }
+        };
+
         btnJoin.onclick = async () =>
         {
             try
@@ -178,7 +239,22 @@
             }
         };
 
-        btnLeave.onclick = () => { if (room) room.leave() };
+        btnLeave.onclick = () =>
+        {
+            btnLeave.disabled = true;
+            btnLeave.textContent = "Leaving...";
+            btnCreate.disabled = true;
+
+            log("Leaving room...");
+
+            try { if (room) room.leave() }
+            catch (e) { log(`Error while leaving: ${e.message}`) }
+
+            btnLeave.textContent = "Leave Room";
+            btnCreate.disabled = false;
+            btnCreate.textContent = "Create Room";
+            updateUI(false);
+        };
 
         btnSend.onclick = () =>
         {
@@ -195,6 +271,12 @@
 
         //Enter is send.
         messageInput.addEventListener("keyup", (e) => { if(e.key === "Enter") btnSend.click() });
+
+        btnCopyInvite.onclick = () =>
+        {
+            let text = inviteBox.textContent.replace("Invite Link: ", "");
+            navigator.clipboard.writeText(text).then(log.bind(this, "Invite link copied!"));
+        }
     </script>
 </body>
 </html>
