@@ -1,99 +1,169 @@
-// This is just a sample app. You can structure your Neutralinojs app code as you wish.
-// This example app is written with vanilla JavaScript and HTML.
-// Feel free to use any frontend framework you like :)
-// See more details: https://neutralino.js.org/docs/how-to/use-a-frontend-library
-
-/*
-    Function to display information about the Neutralino app.
-    This function updates the content of the 'info' element in the HTML
-    with details regarding the running Neutralino application, including
-    its ID, port, operating system, and version information.
-*/
-function showInfo() {
-    document.getElementById('info').innerHTML = `
-        ${NL_APPID} is running on port ${NL_PORT} inside ${NL_OS}
-        <br/><br/>
-        <span>server: v${NL_VERSION} . client: v${NL_CVERSION}</span>
-        `;
-}
-
-/*
-    Function to open the official Neutralino documentation in the default web browser.
-*/
-function openDocs() {
-    Neutralino.os.open("https://neutralino.js.org/docs");
-}
-
-/*
-    Function to open a tutorial video on Neutralino's official YouTube channel in the default web browser.
-*/
-function openTutorial() {
-    Neutralino.os.open("https://www.youtube.com/c/CodeZri");
-}
-
-/*
-    Function to set up a system tray menu with options specific to the window mode.
-    This function checks if the application is running in window mode, and if so,
-    it defines the tray menu items and sets up the tray accordingly.
-*/
-function setTray() {
-    // Tray menu is only available in window mode
-    if(NL_MODE != "window") {
-        console.log("INFO: Tray menu is only available in the window mode.");
-        return;
-    }
-
-    // Define tray menu items
-    let tray = {
-        icon: "/resources/icons/trayIcon.png",
-        menuItems: [
-            {id: "VERSION", text: "Get version"},
-            {id: "SEP", text: "-"},
-            {id: "QUIT", text: "Quit"}
-        ]
-    };
-
-    // Set the tray menu
-    Neutralino.os.setTray(tray);
-}
-
-/*
-    Function to handle click events on the tray menu items.
-    This function performs different actions based on the clicked item's ID,
-    such as displaying version information or exiting the application.
-*/
-function onTrayMenuItemClicked(event) {
-    switch(event.detail.id) {
-        case "VERSION":
-            // Display version information
-            Neutralino.os.showMessageBox("Version information",
-                `Neutralinojs server: v${NL_VERSION} | Neutralinojs client: v${NL_CVERSION}`);
-            break;
-        case "QUIT":
-            // Exit the application
-            Neutralino.app.exit();
-            break;
-    }
-}
-
-/*
-    Function to handle the window close event by gracefully exiting the Neutralino application.
-*/
-function onWindowClose() {
-    Neutralino.app.exit();
-}
-
-// Initialize Neutralino
 Neutralino.init();
 
-// Register event listeners
-Neutralino.events.on("trayMenuItemClicked", onTrayMenuItemClicked);
-Neutralino.events.on("windowClose", onWindowClose);
+let serverProcessId = null;
+let tunnelProcessId = null;
+let publicUrl = null;
 
-// Conditional initialization: Set up system tray if not running on macOS
-if(NL_OS != "Darwin") { // TODO: Fix https://github.com/neutralinojs/neutralinojs/issues/615
-    setTray();
+const logEl = document.getElementById("log");
+const statusEl = document.getElementById("status");
+const publicUrlBox = document.getElementById("publicUrlBox");
+const btnCopyUrl = document.getElementById("btnCopyUrl");
+
+function log(message) {
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent += `[${time}] ${message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log(message);
 }
 
-// Display app information
-showInfo();
+function setStatus(text) {
+    statusEl.textContent = "Status: " + text;
+}
+
+function updateButtons(running) {
+    document.getElementById("btnStartServer").disabled = running;
+    document.getElementById("btnStartTunnel").disabled = running;
+    document.getElementById("btnStartBoth").disabled = running;
+    document.getElementById("btnStop").disabled = !running;
+}
+
+function setPublicUrl(url) {
+    publicUrl = url;
+    if (url) {
+        publicUrlBox.textContent = url;
+        btnCopyUrl.disabled = false;
+    } else {
+        publicUrlBox.textContent = "Not available yet";
+        btnCopyUrl.disabled = true;
+    }
+}
+
+// Single event listener for all spawned processes
+Neutralino.events.on("spawnedProcess", (evt) => {
+    const { id, action, data } = evt.detail;
+
+    if (id === serverProcessId) {
+        if (action === "stdOut" || action === "stdErr") {
+            log(`[Server] ${data}`);
+        }
+        if (action === "exit") {
+            log("Server process exited");
+            serverProcessId = null;
+        }
+    }
+
+    if (id === tunnelProcessId) {
+        if (action === "stdOut" || action === "stdErr") {
+            log(`[Tunnel] ${data}`);
+
+            const match = data.match(/https:\/\/[a-zA-Z0-9-]+\.lhr\.life/);
+            if (match && !publicUrl) {
+                setPublicUrl(match[0]);
+                log("Public URL detected: " + match[0]);
+                setStatus("Ready → " + match[0]);
+            }
+        }
+        if (action === "exit") {
+            log("Tunnel process exited");
+            tunnelProcessId = null;
+            setPublicUrl(null);
+        }
+    }
+});
+
+async function startServer() {
+    try {
+        log("Starting Colyseus server...");
+        const result = await Neutralino.os.spawnProcess("node ../build/index.js");
+        serverProcessId = result.id;
+        log("Server started");
+        setStatus("Server running");
+    } catch (err) {
+        log("Failed to start server: " + err.message);
+    }
+}
+
+async function startTunnel() {
+    try {
+        log("Starting tunnel...");
+        const command = `ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -R 80:localhost:2567 nokey@localhost.run`;
+        const result = await Neutralino.os.spawnProcess(command);
+        tunnelProcessId = result.id;
+        log("Tunnel started");
+    } catch (err) {
+        log("Failed to start tunnel: " + err.message);
+    }
+}
+
+async function startBoth() {
+    updateButtons(true);
+    setStatus("Starting...");
+    setPublicUrl(null);
+    await startServer();
+
+    setTimeout(async () => {
+        await startTunnel();
+    }, 2000);
+}
+
+async function stopAll() {
+    log("Stopping processes...");
+
+    try {
+        if (serverProcessId !== null) {
+            await Neutralino.os.updateSpawnedProcess(serverProcessId, "exit");
+            serverProcessId = null;
+        }
+        if (tunnelProcessId !== null) {
+            await Neutralino.os.updateSpawnedProcess(tunnelProcessId, "exit");
+            tunnelProcessId = null;
+        }
+    } catch (err) {
+        log("Error while stopping: " + err.message);
+    }
+
+    setPublicUrl(null);
+    updateButtons(false);
+    setStatus("Idle");
+    log("All processes stopped");
+}
+
+// Button events
+document.getElementById("btnStartServer").addEventListener("click", async () => {
+    updateButtons(true);
+    await startServer();
+});
+
+document.getElementById("btnStartTunnel").addEventListener("click", async () => {
+    updateButtons(true);
+    await startTunnel();
+});
+
+document.getElementById("btnClearLog").addEventListener("click", () => {
+  logEl.textContent = "";
+  log("Log cleared.");
+});
+
+document.getElementById("btnStartBoth").addEventListener("click", startBoth);
+document.getElementById("btnStop").addEventListener("click", stopAll);
+
+btnCopyUrl.addEventListener("click", async () => {
+    if (!publicUrl) return;
+    try {
+        await Neutralino.clipboard.writeText(publicUrl);
+        log("Public URL copied to clipboard");
+    } catch (err) {
+        log("Failed to copy: " + err.message);
+    }
+});
+
+// Clean shutdown
+Neutralino.events.on("windowClose", async () => {
+    await stopAll();
+    Neutralino.app.exit();
+});
+
+log("Launcher ready.");
+setStatus("Idle");
+updateButtons(false);
+setPublicUrl(null);

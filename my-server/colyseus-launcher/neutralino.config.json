@@ -16,7 +16,9 @@
   "nativeAllowList": [
     "app.*",
     "os.*",
-    "debug.log"
+    "clipboard.*",
+    "debug.log",
+    "events.*"
   ],
   "globalVariables": {
     "TEST1": "Hello",
