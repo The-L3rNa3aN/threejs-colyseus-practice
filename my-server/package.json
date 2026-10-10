@@ -14,7 +14,7 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf build",
     "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000",
-    "package": "npm run build && pkg . --targets node18-win-x64 --output dist/ColyseusServer.exe",
+    "package": "npm run build && npx caxa --input \".\" --output \"dist/ColyseusHost.exe\" --exclude \"colyseus-launcher/**\" --exclude \"dist/**\" --exclude \"**/*.md\" --exclude \"loadtest/**\" --exclude \"test/**\" -- \"{{caxa}}/node_modules/.bin/node\" \"{{caxa}}/host.js\"",
     "host": "node host.js"
   },
   "author": "",
