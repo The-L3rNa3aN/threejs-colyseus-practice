@@ -1,4 +1,4 @@
-import { defineServer, defineRoom, monitor, playground, createRouter, createEndpoint } from "colyseus";
+import { defineServer, defineRoom, monitor, createRouter, createEndpoint } from "colyseus";
 import { MyRoom } from "./rooms/MyRoom.js";
 
 const server = defineServer({
